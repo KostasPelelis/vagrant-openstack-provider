@@ -5,8 +5,16 @@ module VagrantPlugins
         @logger = Log4r::Logger.new('vagrant_openstack::action::config_resolver')
       end
 
-      def get_ip_address(env)
+      def get_ip_address(env, retry_interval = -1, max_retries = 5)
         addresses = env[:openstack_client].nova.get_server_details(env, env[:machine].id)['addresses']
+        if retry_interval > 0
+          retries = 0
+          until retries > max_retries or addresses.size > 0
+            addresses = env[:openstack_client].nova.get_server_details(env, env[:machine].id)['addresses']
+            sleep retry_interval
+            retries += 1
+          end
+        end
         addresses.each do |_, network|
           network.each do |network_detail|
             return network_detail['addr'] if network_detail['OS-EXT-IPS:type'] == 'floating'
